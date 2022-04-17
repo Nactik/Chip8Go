@@ -1,4 +1,4 @@
-package chip8
+package core
 
 var sprites = []uint8{
 	0xF0, 0x90, 0x90, 0x90, 0xF0, //O
@@ -47,4 +47,9 @@ func Init() Chip8 {
 	}
 
 	return chip8
+}
+
+// TODO: Open Rom file and copy content to memory
+func (c *Chip8) LoadRom() {
+
 }
