@@ -1,5 +1,11 @@
 package core
 
+import (
+	"bufio"
+	"fmt"
+	"os"
+)
+
 var sprites = []uint8{
 	0xF0, 0x90, 0x90, 0x90, 0xF0, //O
 	0x20, 0x60, 0x20, 0x20, 0x70, //1
@@ -50,6 +56,36 @@ func Init() Chip8 {
 }
 
 // TODO: Open Rom file and copy content to memory
-func (c *Chip8) LoadRom() {
+func (c *Chip8) LoadRom(romPath string) error {
+	rom, err := os.Open(romPath)
 
+	if err != nil {
+		return err
+	}
+
+	defer rom.Close()
+
+	stats, statsErr := rom.Stat()
+	if statsErr != nil {
+		return statsErr
+	}
+
+	romSize := stats.Size()
+	memoryCap := cap(c.memory[c.pc:])
+
+	// Check if can be put in memory
+	if romSize > int64(memoryCap) {
+		fmt.Println("Rom is too big")
+		return fmt.Errorf("Rom is too big")
+	}
+
+	// Write rom content into memory
+	bufr := bufio.NewReader(rom)
+	_, readErr := bufr.Read(c.memory[c.pc:])
+
+	if readErr != nil {
+		return readErr
+	} else {
+		return nil
+	}
 }

@@ -20,6 +20,10 @@ func main() {
 	romPath := os.Args[1]
 	chip8 := core.Init()
 
-	chip8.LoadRom(romPath)
+	err := chip8.LoadRom(romPath)
 
+	if err != nil {
+		fmt.Println("Error loading the ROM file")
+		os.Exit(-1)
+	}
 }
