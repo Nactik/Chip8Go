@@ -94,7 +94,17 @@ func (c *Chip8) LoadRom(romPath string) error {
 func (c *Chip8) readInstruction(opcode uint16) error {
 	switch opcode & 0xF000 {
 	case 0x0000:
-
+		if opcode == 0x00E0 {
+			// Clear the display
+			c.display = [32][64]uint8{}
+		} else if opcode == 0x00EE {
+			// Return from a subroutine.
+			// The interpreter sets the program counter to the address at the top of the stack, then subtracts 1 from the stack pointer.
+			c.pc = c.stack[c.sp]
+			c.sp--
+		} else {
+			return fmt.Errorf("Unknown Opcode 0x0nnn")
+		}
 	case 0x1000:
 		// JMP Instruction 0x1nnn - Jump to adress nnn
 		nextPc := opcode & 0x0FFF
@@ -147,6 +157,10 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 		kk := uint8(opcode & 0x00FF)
 		c.vx[x] = c.vx[x] + kk
 	case 0x8000:
+		err := c.read8xInstruction(opcode)
+		if err != nil {
+			return err
+		}
 	case 0x9000:
 		// 0x9xy0
 		// Skip next instruction if Vx != Vy.
@@ -184,4 +198,87 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 	default:
 		return fmt.Errorf("Unknown Opcode")
 	}
+
+	return nil
+}
+
+func (c *Chip8) read8xInstruction(opcode uint16) error {
+	x := (opcode & 0x0F00) >> 8
+	y := (opcode & 0x00F0) >> 4
+
+	switch opcode & 0x000F {
+	case 0:
+		// 8xy0 - LD Vx, Vy
+		// Set Vx = Vy.
+		// Stores the value of register Vy in register Vx.
+		c.vx[x] = c.vx[y]
+	case 0x0001:
+		// 8xy1 - OR Vx, Vy
+		// Set Vx = Vx OR Vy
+		c.vx[x] = c.vx[x] | c.vx[y]
+	case 0x0002:
+		// 8xy2 - AND Vx, Vy
+		// Set Vx = Vx AND Vy.
+		c.vx[x] = c.vx[x] & c.vx[y]
+	case 0x0003:
+		// 8xy3 - XOR Vx, Vy
+		// Set Vx = Vx XOR Vy.
+		c.vx[x] = c.vx[x] ^ c.vx[y]
+	case 0x0004:
+		// 8xy4 - ADD Vx, Vy
+		// Set Vx = Vx + Vy, set VF = carry.
+		// The values of Vx and Vy are added together. If the result is greater than 8 bits (i.e., > 255,) VF is set to 1, otherwise 0.
+		// Only the lowest 8 bits of the result are kept, and stored in Vx.
+		sum := int(c.vx[x]) + int(c.vx[y])
+		if sum > 255 {
+			c.vx[0xF] = 1
+			sum = sum & 0xFF
+		} else {
+			c.vx[0xF] = 0
+		}
+		c.vx[x] = uint8(sum)
+	case 0x0005:
+		// 8xy5 - SUB Vx, Vy
+		// Set Vx = Vx - Vy, set VF = NOT borrow.
+		// If Vx > Vy, then VF is set to 1, otherwise 0. Then Vy is subtracted from Vx, and the results stored in Vx.
+		if c.vx[x] > c.vx[y] {
+			c.vx[0xF] = 1
+		} else {
+			c.vx[0xF] = 0
+		}
+		c.vx[x] = c.vx[x] - c.vx[y]
+	case 0x0006:
+		// 8xy6 - SHR Vx {, Vy}
+		// Set Vx = Vx SHR 1.
+		// If the least-significant bit of Vx is 1, then VF is set to 1, otherwise 0. Then Vx is divided by 2.
+		if c.vx[x]&1 == 1 {
+			c.vx[0xF] = 1
+		} else {
+			c.vx[0xF] = 0
+		}
+		c.vx[x] = c.vx[x] >> 1
+	case 0x0007:
+		// 8xy7 - SUBN Vx, Vy
+		// Set Vx = Vy - Vx, set VF = NOT borrow.
+		// If Vy > Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy, and the results stored in Vx.
+		if c.vx[y] > c.vx[x] {
+			c.vx[0xF] = 1
+		} else {
+			c.vx[0xF] = 0
+		}
+		c.vx[x] = c.vx[y] - c.vx[x]
+	case 0x000E:
+		// 8xyE - SHL Vx {, Vy}
+		// Set Vx = Vx SHL 1.
+		// If the most-significant bit of Vx is 1, then VF is set to 1, otherwise to 0. Then Vx is multiplied by 2.
+		if (c.vx[x]&0xF0)>>7 == 1 {
+			c.vx[0xF] = 1
+		} else {
+			c.vx[0xF] = 0
+		}
+		c.vx[x] = c.vx[x] << 1
+	default:
+		return fmt.Errorf("Unknown Opcode 0x8nnn")
+	}
+	return nil
 }
