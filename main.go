@@ -36,7 +36,7 @@ func main() {
 	}
 	defer sdl.Quit()
 
-	window, render, err := sdl.CreateWindowAndRenderer(64, 32, sdl.WINDOW_SHOWN)
+	window, render, err := sdl.CreateWindowAndRenderer(256, 128, sdl.WINDOW_SHOWN)
 	if err != nil {
 		panic(err)
 	}
@@ -56,14 +56,18 @@ func main() {
 		if chip8.DrawFlag {
 			display := chip8.GetDisplay()
 			for y := 0; y < len(display); y++ {
+				yIdx := y * 4
 				for x := 0; x < len(display[y]); x++ {
+					xIdx := x * 4
 					if display[y][x] == 1 {
 						render.SetDrawColor(255, 255, 255, 1)
 					} else {
 						render.SetDrawColor(0, 0, 0, 1)
 					}
 					//On render
-					render.DrawPoint(int32(x), int32(y))
+					rect := sdl.Rect{int32(xIdx), int32(yIdx), 4, 4}
+					render.DrawRect(&rect)
+					//render.DrawPoint(int32(xIdx), int32(xIdx))
 				}
 			}
 			render.Present()
