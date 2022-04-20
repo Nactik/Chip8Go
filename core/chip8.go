@@ -79,7 +79,6 @@ func (c *Chip8) LoadRom(romPath string) error {
 
 	// Check if can be put in memory
 	if romSize > int64(memoryCap) {
-		fmt.Println("Rom is too big")
 		return fmt.Errorf("Rom is too big")
 	}
 
@@ -94,7 +93,18 @@ func (c *Chip8) LoadRom(romPath string) error {
 	}
 }
 
-// TODO
+func (c *Chip8) Cycle() error {
+	opcode := (uint16(c.memory[c.pc]) << 8) | uint16(c.memory[c.pc+1])
+
+	err := c.readInstruction(opcode)
+	if err != nil {
+		return err
+	}
+
+	c.pc += 2
+	return nil
+}
+
 func (c *Chip8) readInstruction(opcode uint16) error {
 	switch opcode & 0xF000 {
 	case 0x0000:

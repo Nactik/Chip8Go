@@ -23,7 +23,19 @@ func main() {
 	err := chip8.LoadRom(romPath)
 
 	if err != nil {
-		fmt.Println("Error loading the ROM file")
+		fmt.Println(err.Error())
 		os.Exit(-1)
+	}
+
+	for {
+		err = chip8.Cycle()
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(-1)
+		}
+
+		//TODO : Display the screen
+
+		//TODO : Check keyboard inputs
 	}
 }
