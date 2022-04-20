@@ -43,9 +43,9 @@ func main() {
 	defer window.Destroy()
 	defer render.Destroy()
 
+	fmt.Println("Emulate loop")
 	// Emulate loops
 	for {
-		fmt.Println("Emulate loop")
 		chip8.DrawFlag = false
 		err = chip8.Cycle()
 		if err != nil {
