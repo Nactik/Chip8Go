@@ -42,6 +42,10 @@ type Chip8 struct {
 	/** Other **/
 	display [32][64]uint8 //64x32 monochrome display (should be an array of bits but the minimum adressable memory is a byte)
 	memory  [4096]uint8   //Memory of 4096 bytes, from Ox000 to OxFFF (4095)
+
+	keyboard [16]bool
+
+	DrawFlag uint8
 }
 
 func Init() Chip8 {
@@ -118,8 +122,6 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 	case 0x3000:
 		// Skip next instruction if Vx = kk.
 		// The interpreter compares register Vx to kk, and if they are equal, increments the program counter by 2.
-		// Skip next instruction if Vx = kk.
-		// The interpreter compares register Vx to kk, and if they are equal, increments the program counter by 2.
 		kk := uint8(opcode & 0x00FF)
 		x := (opcode & 0x0F00) >> 8
 		if c.vx[x] == kk {
@@ -193,8 +195,44 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 		randomValue := uint8(rand.Intn(256)) & kk
 		c.vx[x] = randomValue
 	case 0xD000:
+		// Dxyn - DRW Vx, Vy, nibble
+		// The interpreter reads n bytes from memory, starting at the address stored in I.
+		// These bytes are then displayed as sprites on screen at coordinates (Vx, Vy). Sprites are XORed onto the existing screen.
+		// If this causes any pixels to be erased, VF is set to 1, otherwise it is set to 0.
+		// If the sprite is positioned so part of it is outside the coordinates of the display, it wraps around to the opposite side of the screen.
+		c.vx[15] = 0 // set vf to 0
+		n := opcode & 0x000F
+		vx := c.vx[(opcode&0x0F00)>>8] & 63 // Modulo 63 in case it overflows
+		vy := c.vx[(opcode&0x00F0)>>4] & 32 // Modulo 32 in case it overflows
+
+		sprites := c.memory[c.i : c.i+n]
+		for i, sprite := range sprites {
+			i := uint8(i)
+			if vy+i > 32 {
+				break
+			}
+			for j := 0; j < 8; j++ {
+				j := uint8(j)
+				if vx+j > 63 {
+					break
+				}
+				spriteBit := sprite >> (8 - (j + 1)) // On récupère le bit courant du sprite (most-significativ first)
+				pastPixel := c.display[vy+i][vx+j]
+				c.display[vy+i][vx+j] = c.display[vy+i][vx+j] ^ spriteBit
+				if pastPixel != c.display[vy+i][vx+j] {
+					c.vx[15] = 1
+				}
+			}
+		}
+
+		c.DrawFlag = 1
 	case 0xE000:
+
 	case 0xF000:
+		err := c.readFxInstruction(opcode)
+		if err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("Unknown Opcode")
 	}
@@ -279,6 +317,71 @@ func (c *Chip8) read8xInstruction(opcode uint16) error {
 		c.vx[x] = c.vx[x] << 1
 	default:
 		return fmt.Errorf("Unknown Opcode 0x8nnn")
+	}
+	return nil
+}
+
+func (c *Chip8) readFxInstruction(opcode uint16) error {
+	x := (opcode & 0x0F00) >> 8
+
+	switch opcode & 0x00FF {
+	case 0x0007:
+		// Set Vx = delay timer value.
+		// The value of DT is placed into Vx.
+		c.vx[x] = c.delayTimer
+	case 0x000A:
+		// Wait for a key press, store the value of the key in Vx.
+		// All execution stops until a key is pressed, then the value of that key is stored in Vx.
+		for i, pressed := range c.keyboard {
+			if pressed {
+				c.vx[x] = uint8(i)
+			} else {
+				c.pc -= 2 //skip instruction
+			}
+		}
+	case 0x0015:
+		// Set delay timer = Vx.
+		// DT is set equal to the value of Vx.
+		c.delayTimer = c.vx[x]
+	case 0x0018:
+		// Set sound timer = Vx.
+		// ST is set equal to the value of Vx.
+		c.soundTimer = c.vx[x]
+	case 0x001E:
+		// Set I = I + Vx.
+		// The values of I and Vx are added, and the results are stored in I.
+		c.i = c.i + uint16(c.vx[x])
+	case 0x0029:
+		// Set I = location of sprite for digit Vx.
+		// The value of I is set to the location for the hexadecimal sprite corresponding to the value of Vx.
+		vx := c.vx[x]
+		c.i = uint16(vx * 5)
+	case 0x0033:
+		// Store BCD representation of Vx in memory locations I, I+1, and I+2.
+		// The interpreter takes the decimal value of Vx, and places the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.
+		vx := c.vx[x]
+		hundreds := vx % 100
+		tens := vx % 10
+		ones := vx - (hundreds*100 + tens*10)
+		c.memory[c.i] = hundreds
+		c.memory[c.i+1] = tens
+		c.memory[c.i+2] = ones
+	case 0x0055:
+		// Store registers V0 through Vx in memory starting at location I.
+		// The interpreter copies the values of registers V0 through Vx into memory, starting at the address in I.
+		for i := 0; i < int(x); i++ {
+			vi := c.vx[i]
+			c.memory[c.i+uint16(i)] = vi
+		}
+	case 0x0065:
+		// Read registers V0 through Vx from memory starting at location I.
+		// The interpreter reads values from memory starting at location I into registers V0 through Vx.
+		for i := 0; i < int(x); i++ {
+			memValue := c.memory[c.i+uint16(i)]
+			c.vx[i] = memValue
+		}
+	default:
+		return fmt.Errorf("Unknown Opcode 0xFnnn")
 	}
 	return nil
 }
