@@ -66,7 +66,7 @@ func main() {
 					}
 					//On render
 					rect := sdl.Rect{int32(xIdx), int32(yIdx), 4, 4}
-					render.DrawRect(&rect)
+					render.FillRect(&rect)
 					//render.DrawPoint(int32(xIdx), int32(xIdx))
 				}
 			}
