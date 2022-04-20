@@ -16,6 +16,7 @@ The goal of this project is to build a Chip 8 Emulator using Golang (This is my 
 Here you can find usefull docs on how to program such an emulator
 
 - Chip 8 Technical Reference : [link](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#memmap)
+- Guide to making a CHIP-8 emulator : [link](https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#dxyn-display)
 
 ## Installation 
 
