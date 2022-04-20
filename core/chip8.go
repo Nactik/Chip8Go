@@ -414,14 +414,14 @@ func (c *Chip8) readFxInstruction(opcode uint16) error {
 	case 0x0055:
 		// Store registers V0 through Vx in memory starting at location I.
 		// The interpreter copies the values of registers V0 through Vx into memory, starting at the address in I.
-		for i := 0; i < int(x); i++ {
+		for i := 0; i < int(x+1); i++ {
 			vi := c.vx[i]
 			c.memory[c.i+uint16(i)] = vi
 		}
 	case 0x0065:
 		// Read registers V0 through Vx from memory starting at location I.
 		// The interpreter reads values from memory starting at location I into registers V0 through Vx.
-		for i := 0; i < int(x); i++ {
+		for i := 0; i < int(x+1); i++ {
 			memValue := c.memory[c.i+uint16(i)]
 			c.vx[i] = memValue
 		}
