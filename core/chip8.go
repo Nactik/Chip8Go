@@ -155,7 +155,7 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 		// The interpreter compares register Vx to register Vy, and if they are equal, increments the program counter by 2.
 		x := (opcode & 0x0F00) >> 8
 		y := (opcode & 0x00F0) >> 4
-		if c.vx[x] != c.vx[y] {
+		if c.vx[x] == c.vx[y] {
 			c.pc += 2
 		}
 	case 0x6000:
@@ -404,9 +404,10 @@ func (c *Chip8) readFxInstruction(opcode uint16) error {
 		// Store BCD representation of Vx in memory locations I, I+1, and I+2.
 		// The interpreter takes the decimal value of Vx, and places the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.
 		vx := c.vx[x]
-		hundreds := vx % 100
-		tens := vx % 10
-		ones := vx - (hundreds*100 + tens*10)
+		hundreds := vx / 100
+		tens := (vx / 10) - (hundreds * 10)
+		ones := vx % 10
+
 		c.memory[c.i] = hundreds
 		c.memory[c.i+1] = tens
 		c.memory[c.i+2] = ones
