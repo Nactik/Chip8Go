@@ -45,7 +45,7 @@ type Chip8 struct {
 
 	keyboard [16]bool
 
-	DrawFlag uint8
+	DrawFlag bool
 }
 
 func Init() Chip8 {
@@ -111,13 +111,14 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 		if opcode == 0x00E0 {
 			// Clear the display
 			c.display = [32][64]uint8{}
+			c.DrawFlag = true
 		} else if opcode == 0x00EE {
 			// Return from a subroutine.
 			// The interpreter sets the program counter to the address at the top of the stack, then subtracts 1 from the stack pointer.
 			c.pc = c.stack[c.sp]
 			c.sp--
 		} else {
-			return fmt.Errorf("Unknown Opcode 0x0nnn")
+			//return fmt.Errorf("Unknown Opcode 0x0nnn")
 		}
 	case 0x1000:
 		// JMP Instruction 0x1nnn - Jump to adress nnn
@@ -235,7 +236,7 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 			}
 		}
 
-		c.DrawFlag = 1
+		c.DrawFlag = true
 	case 0xE000:
 		x := (opcode & 0x0F00) >> 8
 		switch opcode & 0x00FF {
@@ -261,7 +262,7 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 				c.pc += 2
 			}
 		default:
-			return fmt.Errorf("Unknown 0x9nnn Opcode")
+			return fmt.Errorf("Unknown 0xEnnn Opcode %d", opcode)
 		}
 
 	case 0xF000:
@@ -352,7 +353,7 @@ func (c *Chip8) read8xInstruction(opcode uint16) error {
 		}
 		c.vx[x] = c.vx[x] << 1
 	default:
-		return fmt.Errorf("Unknown Opcode 0x8nnn")
+		return fmt.Errorf("Unknown Opcode 0x8nnn %d", opcode)
 	}
 	return nil
 }
@@ -417,7 +418,11 @@ func (c *Chip8) readFxInstruction(opcode uint16) error {
 			c.vx[i] = memValue
 		}
 	default:
-		return fmt.Errorf("Unknown Opcode 0xFnnn")
+		return fmt.Errorf("Unknown Opcode 0xFnnn %d", opcode)
 	}
 	return nil
+}
+
+func (c *Chip8) GetDisplay() [32][64]uint8 {
+	return c.display
 }
