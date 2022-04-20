@@ -45,7 +45,7 @@ type Chip8 struct {
 
 	keyboard [16]bool
 
-	DrawFlag uint8
+	DrawFlag bool
 }
 
 func Init() Chip8 {
@@ -95,6 +95,7 @@ func (c *Chip8) LoadRom(romPath string) error {
 
 func (c *Chip8) Cycle() error {
 	opcode := (uint16(c.memory[c.pc]) << 8) | uint16(c.memory[c.pc+1])
+	fmt.Printf("Current opcode : %d\n", opcode)
 
 	err := c.readInstruction(opcode)
 	if err != nil {
@@ -111,24 +112,27 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 		if opcode == 0x00E0 {
 			// Clear the display
 			c.display = [32][64]uint8{}
+			c.DrawFlag = true
 		} else if opcode == 0x00EE {
 			// Return from a subroutine.
 			// The interpreter sets the program counter to the address at the top of the stack, then subtracts 1 from the stack pointer.
 			c.pc = c.stack[c.sp]
 			c.sp--
 		} else {
-			return fmt.Errorf("Unknown Opcode 0x0nnn")
+			return fmt.Errorf("Unknown Opcode 0x0nnn %d", opcode)
 		}
 	case 0x1000:
 		// JMP Instruction 0x1nnn - Jump to adress nnn
 		nextPc := opcode & 0x0FFF
 		c.pc = nextPc
+		c.pc -= 2
 	case 0x2000:
 		// Call subroutine at nnn.
 		// The interpreter increments the stack pointer, then puts the current PC on the top of the stack. The PC is then set to nnn.
 		c.sp++
 		c.stack[c.sp] = c.pc
 		c.pc = opcode & 0x0FFF
+		c.pc -= 2
 	case 0x3000:
 		// Skip next instruction if Vx = kk.
 		// The interpreter compares register Vx to kk, and if they are equal, increments the program counter by 2.
@@ -151,7 +155,7 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 		// The interpreter compares register Vx to register Vy, and if they are equal, increments the program counter by 2.
 		x := (opcode & 0x0F00) >> 8
 		y := (opcode & 0x00F0) >> 4
-		if c.vx[x] != c.vx[y] {
+		if c.vx[x] == c.vx[y] {
 			c.pc += 2
 		}
 	case 0x6000:
@@ -213,29 +217,33 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 		c.vx[15] = 0 // set vf to 0
 		n := opcode & 0x000F
 		vx := c.vx[(opcode&0x0F00)>>8] & 63 // Modulo 63 in case it overflows
-		vy := c.vx[(opcode&0x00F0)>>4] & 32 // Modulo 32 in case it overflows
+		vy := c.vx[(opcode&0x00F0)>>4] & 31 // Modulo 32 in case it overflows
 
 		sprites := c.memory[c.i : c.i+n]
 		for i, sprite := range sprites {
+			//fmt.Println(strconv.FormatInt(int64(sprite), 2))
 			i := uint8(i)
-			if vy+i > 32 {
+			if vy+i > 31 {
 				break
 			}
+
 			for j := 0; j < 8; j++ {
 				j := uint8(j)
 				if vx+j > 63 {
 					break
 				}
-				spriteBit := sprite >> (8 - (j + 1)) // On récupère le bit courant du sprite (most-significativ first)
+				spriteBit := (sprite >> (8 - (j + 1))) & 1 // On récupère le bit courant du sprite (most-significativ first)
+
 				pastPixel := c.display[vy+i][vx+j]
 				c.display[vy+i][vx+j] = c.display[vy+i][vx+j] ^ spriteBit
+
 				if pastPixel != c.display[vy+i][vx+j] {
 					c.vx[15] = 1
 				}
 			}
 		}
 
-		c.DrawFlag = 1
+		c.DrawFlag = true
 	case 0xE000:
 		x := (opcode & 0x0F00) >> 8
 		switch opcode & 0x00FF {
@@ -261,7 +269,7 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 				c.pc += 2
 			}
 		default:
-			return fmt.Errorf("Unknown 0x9nnn Opcode")
+			return fmt.Errorf("Unknown 0xEnnn Opcode %d", opcode)
 		}
 
 	case 0xF000:
@@ -352,7 +360,7 @@ func (c *Chip8) read8xInstruction(opcode uint16) error {
 		}
 		c.vx[x] = c.vx[x] << 1
 	default:
-		return fmt.Errorf("Unknown Opcode 0x8nnn")
+		return fmt.Errorf("Unknown Opcode 0x8nnn %d", opcode)
 	}
 	return nil
 }
@@ -396,28 +404,33 @@ func (c *Chip8) readFxInstruction(opcode uint16) error {
 		// Store BCD representation of Vx in memory locations I, I+1, and I+2.
 		// The interpreter takes the decimal value of Vx, and places the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.
 		vx := c.vx[x]
-		hundreds := vx % 100
-		tens := vx % 10
-		ones := vx - (hundreds*100 + tens*10)
+		hundreds := vx / 100
+		tens := (vx / 10) - (hundreds * 10)
+		ones := vx % 10
+
 		c.memory[c.i] = hundreds
 		c.memory[c.i+1] = tens
 		c.memory[c.i+2] = ones
 	case 0x0055:
 		// Store registers V0 through Vx in memory starting at location I.
 		// The interpreter copies the values of registers V0 through Vx into memory, starting at the address in I.
-		for i := 0; i < int(x); i++ {
+		for i := 0; i < int(x+1); i++ {
 			vi := c.vx[i]
 			c.memory[c.i+uint16(i)] = vi
 		}
 	case 0x0065:
 		// Read registers V0 through Vx from memory starting at location I.
 		// The interpreter reads values from memory starting at location I into registers V0 through Vx.
-		for i := 0; i < int(x); i++ {
+		for i := 0; i < int(x+1); i++ {
 			memValue := c.memory[c.i+uint16(i)]
 			c.vx[i] = memValue
 		}
 	default:
-		return fmt.Errorf("Unknown Opcode 0xFnnn")
+		return fmt.Errorf("Unknown Opcode 0xFnnn %d", opcode)
 	}
 	return nil
+}
+
+func (c *Chip8) GetDisplay() [32][64]uint8 {
+	return c.display
 }
