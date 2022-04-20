@@ -95,6 +95,7 @@ func (c *Chip8) LoadRom(romPath string) error {
 
 func (c *Chip8) Cycle() error {
 	opcode := (uint16(c.memory[c.pc]) << 8) | uint16(c.memory[c.pc+1])
+	fmt.Printf("Current opcode : %d\n", opcode)
 
 	err := c.readInstruction(opcode)
 	if err != nil {
@@ -118,18 +119,20 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 			c.pc = c.stack[c.sp]
 			c.sp--
 		} else {
-			//return fmt.Errorf("Unknown Opcode 0x0nnn")
+			return fmt.Errorf("Unknown Opcode 0x0nnn %d", opcode)
 		}
 	case 0x1000:
 		// JMP Instruction 0x1nnn - Jump to adress nnn
 		nextPc := opcode & 0x0FFF
 		c.pc = nextPc
+		c.pc -= 2
 	case 0x2000:
 		// Call subroutine at nnn.
 		// The interpreter increments the stack pointer, then puts the current PC on the top of the stack. The PC is then set to nnn.
 		c.sp++
 		c.stack[c.sp] = c.pc
 		c.pc = opcode & 0x0FFF
+		c.pc -= 2
 	case 0x3000:
 		// Skip next instruction if Vx = kk.
 		// The interpreter compares register Vx to kk, and if they are equal, increments the program counter by 2.
@@ -214,22 +217,26 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 		c.vx[15] = 0 // set vf to 0
 		n := opcode & 0x000F
 		vx := c.vx[(opcode&0x0F00)>>8] & 63 // Modulo 63 in case it overflows
-		vy := c.vx[(opcode&0x00F0)>>4] & 32 // Modulo 32 in case it overflows
+		vy := c.vx[(opcode&0x00F0)>>4] & 31 // Modulo 32 in case it overflows
 
 		sprites := c.memory[c.i : c.i+n]
 		for i, sprite := range sprites {
+			//fmt.Println(strconv.FormatInt(int64(sprite), 2))
 			i := uint8(i)
-			if vy+i > 32 {
+			if vy+i > 31 {
 				break
 			}
+
 			for j := 0; j < 8; j++ {
 				j := uint8(j)
 				if vx+j > 63 {
 					break
 				}
-				spriteBit := sprite >> (8 - (j + 1)) // On récupère le bit courant du sprite (most-significativ first)
+				spriteBit := (sprite >> (8 - (j + 1))) & 1 // On récupère le bit courant du sprite (most-significativ first)
+
 				pastPixel := c.display[vy+i][vx+j]
 				c.display[vy+i][vx+j] = c.display[vy+i][vx+j] ^ spriteBit
+
 				if pastPixel != c.display[vy+i][vx+j] {
 					c.vx[15] = 1
 				}
