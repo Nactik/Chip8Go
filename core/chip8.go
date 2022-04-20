@@ -227,6 +227,32 @@ func (c *Chip8) readInstruction(opcode uint16) error {
 
 		c.DrawFlag = 1
 	case 0xE000:
+		x := (opcode & 0x0F00) >> 8
+		switch opcode & 0x00FF {
+		case 0x009E:
+			// Skip next instruction if key with the value of Vx is pressed.
+			// Checks the keyboard, and if the key corresponding to the value of Vx is currently in the down position, PC is increased by 2.
+			vx := c.vx[x]
+			if vx > 15 {
+				return fmt.Errorf("Can't find key value : %d", vx)
+			}
+			if !c.keyboard[vx] {
+				c.pc += 2
+			}
+
+		case 0x00A1:
+			// Skip next instruction if key with the value of Vx is not pressed.
+			// Checks the keyboard, and if the key corresponding to the value of Vx is currently in the up position, PC is increased by 2.
+			vx := c.vx[x]
+			if vx > 15 {
+				return fmt.Errorf("Can't find key value : %d", vx)
+			}
+			if c.keyboard[vx] {
+				c.pc += 2
+			}
+		default:
+			return fmt.Errorf("Unknown 0x9nnn Opcode")
+		}
 
 	case 0xF000:
 		err := c.readFxInstruction(opcode)
