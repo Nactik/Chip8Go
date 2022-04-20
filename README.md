@@ -26,6 +26,6 @@ Here you can find usefull docs on how to program such an emulator
 
 ## Goals 
 - [x] Build the core
-- [ ] Build a GUI
+- [X] Build a GUI
 - [ ] Port it to the web with WebAssembly
  
